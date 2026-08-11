@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boletería · Sistema de Entradas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#12141c;
+  --surface:#1b1e2b;
+  --surface-2:#242838;
+  --line:#323752;
+  --ink:#f2f0ea;
+  --muted:#8a8fa3;
+  --stub:#ff6b4a;
+  --stub-dark:#d9502f;
+  --ok:#33d6b0;
+  --warn:#ffb84d;
+  --err:#ff5470;
+  --font-display:'Space Grotesk', 'Arial Narrow', sans-serif;
+  --font-body:'Inter', system-ui, sans-serif;
+  --font-mono:'JetBrains Mono', 'Courier New', monospace;
+}
+@font-face{font-family:'Space Grotesk';src:local('Space Grotesk');}
+* { box-sizing:border-box; }
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(circle at 10% 0%, #1c2033 0%, transparent 45%),
+    var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  min-height:100vh;
+}
+h1,h2,h3{font-family:var(--font-display); font-weight:700; margin:0 0 4px;}
+.mono{font-family:var(--font-mono);}
+.muted{color:var(--muted);}
+button{font-family:var(--font-body); cursor:pointer;}
+input,select{font-family:var(--font-body);}
+
+/* ---------- Top nav (ticket-tab style) ---------- */
+.topnav{
+  display:flex; gap:2px; padding:18px 18px 0;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#171a26,transparent);
+  flex-wrap:wrap;
+}
+.topnav .brand{
+  font-family:var(--font-display); font-size:20px; font-weight:700;
+  padding:10px 18px; letter-spacing:.5px; display:flex; align-items:center; gap:8px;
+}
+.topnav .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--stub);}
+.navtabs{display:flex; gap:2px; margin-left:auto;}
+.navtab{
+  padding:12px 20px; border:1px solid var(--line); border-bottom:none;
+  border-radius:10px 10px 0 0; background:var(--surface); color:var(--muted);
+  font-size:14px; font-weight:600; letter-spacing:.3px;
+}
+.navtab.active{color:var(--ink); background:var(--surface-2); border-color:var(--stub);}
+.navtab:hover{color:var(--ink);}
+
+.view{display:none; padding:32px 18px 60px; max-width:1180px; margin:0 auto;}
+.view.active{display:block;}
+
+/* ---------- Ticket-stub divider (signature element) ---------- */
+.stub-divider{
+  position:relative; height:28px; margin:28px 0;
+  background:
+    radial-gradient(circle 8px at 0 50%, var(--bg) 8px, transparent 9px),
+    radial-gradient(circle 8px at 100% 50%, var(--bg) 8px, transparent 9px);
+}
+.stub-divider::before{
+  content:""; position:absolute; left:16px; right:16px; top:50%;
+  border-top:2px dashed var(--line);
+}
+
+/* ---------- Cards / layout ---------- */
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:14px;
+  padding:22px; margin-bottom:18px;
+}
+.grid2{display:grid; grid-template-columns:1.1fr .9fr; gap:20px;}
+.grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+@media(max-width:820px){ .grid2,.grid3{grid-template-columns:1fr;} }
+
+label{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:14px 0 6px;}
+input[type=text],input[type=number],input[type=password],select{
+  width:100%; padding:11px 12px; background:var(--bg); border:1px solid var(--line);
+  border-radius:8px; color:var(--ink); font-size:14px;
+}
+input:focus,select:focus{outline:2px solid var(--stub); outline-offset:1px;}
+
+.btn{
+  border:none; border-radius:8px; padding:12px 20px; font-weight:700; font-size:14px;
+  letter-spacing:.02em; background:var(--stub); color:#1a0f0a;
+}
+.btn:hover{background:var(--stub-dark); color:#fff;}
+.btn.secondary{background:var(--surface-2); color:var(--ink); border:1px solid var(--line);}
+.btn.secondary:hover{border-color:var(--stub);}
+.btn.small{padding:7px 12px; font-size:12px;}
+.btn:disabled{opacity:.4; cursor:not-allowed;}
+
+.seat-grid{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.seat{
+  width:42px; height:38px; display:flex; align-items:center; justify-content:center;
+  border-radius:6px; font-size:12px; font-family:var(--font-mono); border:1px solid var(--line);
+  background:var(--surface-2); color:var(--muted); cursor:pointer;
+}
+.seat.available:hover{border-color:var(--ok);}
+.seat.selected{background:var(--stub); color:#1a0f0a; border-color:var(--stub); font-weight:700;}
+.seat.sold{background:#2a1620; color:#6b4050; border-color:#3a1f2c; cursor:not-allowed;}
+
+/* ---------- Ticket preview ---------- */
+.ticket{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:14px;
+  padding:22px; position:relative; overflow:hidden;
+}
+.ticket .row{display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px dashed var(--line);}
+.ticket .row span:first-child{color:var(--muted);}
+.ticket .price{font-family:var(--font-display); font-size:30px; color:var(--stub); margin-top:10px;}
+.qrbox{display:flex; justify-content:center; padding:14px; background:#fff; border-radius:10px; margin-top:14px;}
+
+/* ---------- Password gate ---------- */
+.gate{max-width:360px; margin:80px auto; text-align:center;}
+.gate .lock{font-size:40px; margin-bottom:6px;}
+
+/* ---------- Stats ---------- */
+.stat{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px;}
+.stat .num{font-family:var(--font-display); font-size:32px; color:var(--stub);}
+.stat .lbl{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:4px;}
+
+/* ---------- Table ---------- */
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:8px; border-bottom:1px solid var(--line);}
+td{padding:8px; border-bottom:1px solid var(--line); vertical-align:middle;}
+tr:hover td{background:var(--surface-2);}
+.badge{padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700;}
+.badge.ok{background:rgba(51,214,176,.15); color:var(--ok);}
+.badge.pending{background:rgba(255,184,77,.15); color:var(--warn);}
+.qrmini{width:46px; height:46px; background:#fff; border-radius:4px; padding:2px;}
+
+/* ---------- Scanner ---------- */
+#scanner-area{max-width:420px; margin:0 auto;}
+#reader{border-radius:12px; overflow:hidden; border:1px solid var(--line);}
+.scan-result{padding:18px; border-radius:12px; margin-top:14px; font-weight:600; text-align:center;}
+.scan-result.ok{background:rgba(51,214,176,.12); border:1px solid var(--ok); color:var(--ok);}
+.scan-result.err{background:rgba(255,84,112,.12); border:1px solid var(--err); color:var(--err);}
+.scan-result.warn{background:rgba(255,184,77,.12); border:1px solid var(--warn); color:var(--warn);}
+
+/* ---------- Diagram 2D ---------- */
+#diagram{
+  position:relative; width:100%; height:460px; background:var(--bg);
+  border:1px dashed var(--line); border-radius:12px; overflow:hidden; margin-top:10px;
+}
+#diagram .stage{
+  position:absolute; top:10px; left:50%; transform:translateX(-50%);
+  width:60%; text-align:center; padding:6px; font-size:11px; letter-spacing:.2em;
+  color:var(--muted); border-bottom:2px solid var(--line);
+}
+.dseat{
+  position:absolute; width:22px; height:20px; border-radius:4px; font-size:9px;
+  display:flex; align-items:center; justify-content:center; font-family:var(--font-mono);
+  border:1px solid var(--line); background:var(--surface-2); color:var(--muted); cursor:grab;
+}
+.dseat.sold{background:var(--stub); border-color:var(--stub); color:#1a0f0a;}
+.dseat.placing{outline:2px solid var(--ok);}
+
+.pill-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+.pill{padding:6px 12px; border-radius:20px; background:var(--surface-2); border:1px solid var(--line); font-size:12px;}
+.hint{font-size:12px; color:var(--muted); margin-top:6px;}
+.flex-between{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;}
+.tag-list{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+.tag{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:8px;
+  padding:8px 10px; font-size:12px; display:flex; align-items:center; gap:8px;
+}
+.tag button{background:none; border:none; color:var(--err); font-weight:700;}
+.subtabs{display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;}
+.subtab{padding:8px 14px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--muted); font-size:13px; font-weight:600;}
+.subtab.active{color:var(--ink); border-color:var(--stub); background:var(--surface-2);}
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="brand"><span class="dot"></span> Boletería</div>
+  <div class="navtabs">
+    <button class="navtab active" data-view="venta">Comprar entrada</button>
+    <button class="navtab" data-view="scanner">Escáner</button>
+    <button class="navtab" data-view="dashboard">Dashboard</button>
+  </div>
+</div>
+
+<!-- ============================================================ VENTA ============================================================ -->
+<div class="view active" id="view-venta">
+  <div class="grid2">
+    <div class="card">
+      <h2>Nueva entrada</h2>
+      <p class="muted" style="font-size:13px;">Completa los datos del comprador y selecciona la ubicación.</p>
+
+      <label>Nombre completo</label>
+      <input type="text" id="f-nombre" placeholder="Nombre y apellido">
+
+      <label>Cédula</label>
+      <input type="text" id="f-cedula" placeholder="Número de documento">
+
+      <label>Teléfono</label>
+      <input type="text" id="f-telefono" placeholder="Número de contacto">
+
+      <label>Tipo de entrada</label>
+      <select id="f-tipo">
+        <option value="general">General</option>
+        <option value="palco">Palco</option>
+      </select>
+
+      <div id="f-palco-select" style="display:none;">
+        <label>Selecciona el palco</label>
+        <select id="f-palco"></select>
+      </div>
+
+      <label id="f-sillas-label">Selecciona tu silla</label>
+      <div class="seat-grid" id="f-sillas"></div>
+      <p class="hint">Verde = disponible · Naranja = tu selección · Gris = vendida</p>
+
+      <div class="stub-divider"></div>
+      <button class="btn" id="btn-generar" style="width:100%;">Generar entrada</button>
+    </div>
+
+    <div>
+      <h2>Vista previa</h2>
+      <div class="ticket" id="ticket-preview">
+        <p class="muted">Aún no se ha generado ninguna entrada.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ SCANNER ============================================================ -->
+<div class="view" id="view-scanner">
+  <div class="gate" id="scanner-gate">
+    <div class="lock">🔒</div>
+    <h2>Acceso al escáner</h2>
+    <p class="muted" style="font-size:13px;">Ingresa la contraseña del personal de puerta.</p>
+    <input type="password" id="scanner-pass" placeholder="Contraseña">
+    <button class="btn" style="width:100%; margin-top:12px;" id="scanner-login">Entrar</button>
+    <p id="scanner-err" style="color:var(--err); font-size:13px; display:none; margin-top:8px;">Contraseña incorrecta.</p>
+  </div>
+
+  <div id="scanner-content" style="display:none;">
+    <div class="flex-between">
+      <h2>Escáner de entradas</h2>
+      <button class="btn secondary small" onclick="lockOut('scanner')">Cerrar sesión</button>
+    </div>
+
+    <div class="grid3" style="margin-bottom:10px;">
+      <div class="stat"><div class="num" id="st-vendidas">0</div><div class="lbl">Vendidas</div></div>
+      <div class="stat"><div class="num" id="st-escaneadas">0</div><div class="lbl">Escaneadas</div></div>
+      <div class="stat"><div class="num" id="st-pendientes">0</div><div class="lbl">Pendientes por ingresar</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card" id="scanner-area">
+        <h3>Cámara</h3>
+        <div id="reader"></div>
+        <div id="scan-result-box"></div>
+        <div class="stub-divider"></div>
+        <label>Ingreso manual (código de la entrada)</label>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="manual-code" placeholder="ID de la entrada">
+          <button class="btn secondary" onclick="manualScan()">Validar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Últimos escaneos</h3>
+        <table><thead><tr><th>Nombre</th><th>Ubicación</th><th>Hora</th></tr></thead>
+        <tbody id="scan-log"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ DASHBOARD ============================================================ -->
+<div class="view" id="view-dashboard">
+  <div class="gate" id="dash-gate">
+    <div class="lock">🔒</div>
+    <h2>Acceso administrador</h2>
+    <p class="muted" style="font-size:13px;">Ingresa la contraseña de administración.</p>
+    <input type="password" id="dash-pass" placeholder="Contraseña">
+    <button class="btn" style="width:100%; margin-top:12px;" id="dash-login">Entrar</button>
+    <p id="dash-err" style="color:var(--err); font-size:13px; display:none; margin-top:8px;">Contraseña incorrecta.</p>
+  </div>
+
+  <div id="dash-content" style="display:none;">
+    <div class="flex-between">
+      <h2>Dashboard del evento</h2>
+      <button class="btn secondary small" onclick="lockOut('dash')">Cerrar sesión</button>
+    </div>
+
+    <div class="subtabs">
+      <button class="subtab" data-sub="conexion">Conexión</button>
+      <button class="subtab active" data-sub="resumen">Resumen</button>
+      <button class="subtab" data-sub="ubicaciones">Ubicaciones</button>
+      <button class="subtab" data-sub="diagrama">Diagrama 2D</button>
+      <button class="subtab" data-sub="entradas">Entradas vendidas</button>
+    </div>
+
+    <!-- Conexión Supabase -->
+    <div class="subview" id="sub-conexion" style="display:none;">
+      <div class="card" style="max-width:560px;">
+        <div class="flex-between">
+          <h3>Conexión con Supabase</h3>
+          <span class="badge" id="conn-badge">Sin conectar</span>
+        </div>
+        <p class="hint">Pega la URL y la anon key de tu proyecto (Project Settings → API en Supabase). Antes de esto, ejecuta <span class="mono">supabase_schema.sql</span> en el SQL Editor de tu proyecto.</p>
+
+        <label>Project URL</label>
+        <input type="text" id="conn-url" placeholder="https://tuproyecto.supabase.co">
+
+        <label>Anon public key</label>
+        <input type="text" id="conn-key" placeholder="eyJhbGciOi...">
+
+        <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
+          <button class="btn secondary" onclick="testConnection()">Probar conexión</button>
+          <button class="btn" onclick="saveConnection()">Guardar y conectar</button>
+          <button class="btn secondary" onclick="clearConnection()">Desconectar</button>
+        </div>
+        <p id="conn-status" class="hint"></p>
+      </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="subview active" id="sub-resumen">
+      <div class="grid3">
+        <div class="stat"><div class="num" id="d-total-dinero">$0</div><div class="lbl">Total recaudado</div></div>
+        <div class="stat"><div class="num" id="d-total-vendidas">0</div><div class="lbl">Entradas vendidas</div></div>
+        <div class="stat"><div class="num" id="d-total-escaneadas">0</div><div class="lbl">Entradas escaneadas</div></div>
+      </div>
+      <div class="grid3" style="margin-top:14px;">
+        <div class="stat"><div class="num" id="d-total-palcos">0</div><div class="lbl">Vendidas en palcos</div></div>
+        <div class="stat"><div class="num" id="d-total-general">0</div><div class="lbl">Vendidas en general</div></div>
+        <div class="stat"><div class="num" id="d-total-disponibles">0</div><div class="lbl">Sillas disponibles</div></div>
+      </div>
+    </div>
+
+    <!-- Ubicaciones -->
+    <div class="subview" id="sub-ubicaciones" style="display:none;">
+      <div class="grid2">
+        <div class="card">
+          <h3>Agregar palco</h3>
+          <label>Nombre del palco</label>
+          <input type="text" id="p-nombre" placeholder="Ej: Palco Norte">
+          <label>Cantidad de sillas</label>
+          <input type="number" id="p-cantidad" min="1" value="10">
+          <label>Precio por silla</label>
+          <input type="number" id="p-precio" min="0" value="150000">
+          <button class="btn" style="margin-top:14px;" onclick="addPalco()">Agregar palco</button>
+
+          <div class="stub-divider"></div>
+          <h3>Palcos configurados</h3>
+          <div class="tag-list" id="palco-list"></div>
+        </div>
+
+        <div class="card">
+          <h3>Ubicación General</h3>
+          <label>Cantidad de sillas</label>
+          <input type="number" id="g-cantidad" min="0" value="200">
+          <label>Precio por silla</label>
+          <input type="number" id="g-precio" min="0" value="60000">
+          <button class="btn" style="margin-top:14px;" onclick="saveGeneral()">Guardar general</button>
+          <p class="hint" id="general-status"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagrama 2D -->
+    <div class="subview" id="sub-diagrama" style="display:none;">
+      <div class="card">
+        <div class="flex-between">
+          <h3>Ubicación manual de sillas</h3>
+          <div>
+            <select id="diag-seat-select" style="width:220px;"></select>
+            <button class="btn secondary small" onclick="armPlacement()">Ubicar silla</button>
+          </div>
+        </div>
+        <p class="hint">Selecciona una silla en la lista y haz clic dentro del escenario para fijar su posición. Naranja = vendida, gris = disponible.</p>
+        <div id="diagram"><div class="stage">ESCENARIO</div></div>
+      </div>
+    </div>
+
+    <!-- Entradas -->
+    <div class="subview" id="sub-entradas" style="display:none;">
+      <div class="card">
+        <div class="flex-between">
+          <h3>Entradas vendidas</h3>
+          <button class="btn secondary small" onclick="exportCSV()">Exportar CSV</button>
+        </div>
+        <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>QR</th><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Tipo</th><th>Ubicación</th><th>Valor</th><th>Estado</th>
+          </tr></thead>
+          <tbody id="tickets-table"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONEXIÓN A SUPABASE
+   La URL y la anon key ya NO van escritas en el código: se configuran
+   desde el Dashboard → pestaña "Conexión" y quedan guardadas (solo en tu
+   sesión de Claude, de forma privada) para la próxima vez que abras el
+   archivo. Antes de conectar, corre supabase_schema.sql en el SQL Editor
+   de tu proyecto Supabase para crear las tablas.
+   ========================================================================= */
+const CONN_KEY = 'supabase:credenciales';
+let SUPABASE_URL = '';
+let SUPABASE_ANON_KEY = '';
+let SUPABASE_READY = false;
+let sb = null;
+
+function initSupabaseClient(url, key){
+  SUPABASE_URL = (url||'').trim();
+  SUPABASE_ANON_KEY = (key||'').trim();
+  SUPABASE_READY = SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY.length > 20;
+  sb = SUPABASE_READY ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  return SUPABASE_READY;
+}
+
+/* Credenciales guardadas: uso almacenamiento PRIVADO (no compartido), ya
+   que solo el administrador que las configura debe verlas de nuevo. */
+async function loadSavedConnection(){
+  try{
+    if(window.storage){
+      const r = await window.storage.get(CONN_KEY, false);
+      if(r){ const c = JSON.parse(r.value); return initSupabaseClient(c.url, c.key); }
+    }
+  }catch(e){ /* no hay credenciales guardadas todavía */ }
+  return false;
+}
+async function persistConnection(url, key){
+  if(window.storage){ await window.storage.set(CONN_KEY, JSON.stringify({url, key}), false); }
+}
+async function forgetConnection(){
+  SUPABASE_URL=''; SUPABASE_ANON_KEY=''; SUPABASE_READY=false; sb=null;
+  try{ if(window.storage) await window.storage.delete(CONN_KEY, false); }catch(e){}
+}
+
+let CONFIG = null;
+let TICKETS = [];
+
+function defaultConfig(){
+  return { palcos: [], general: {cantidad:0, precio:0}, layout: {} };
+}
+
+/* Trae todo (palcos, configuración general, diagrama, entradas) desde
+   Supabase y arma los objetos CONFIG / TICKETS que usa el resto de la app. */
+async function loadAll(){
+  if(!SUPABASE_READY){ CONFIG = defaultConfig(); TICKETS = []; return; }
+
+  const [palcosR, generalR, diagramaR, entradasR] = await Promise.all([
+    sb.from('palcos').select('*').order('created_at'),
+    sb.from('configuracion_general').select('*').eq('id',1).single(),
+    sb.from('diagrama_asientos').select('*'),
+    sb.from('entradas').select('*').order('vendido_at', {ascending:false})
+  ]);
+
+  if(palcosR.error) console.error('palcos:', palcosR.error.message);
+  if(generalR.error) console.error('configuracion_general:', generalR.error.message);
+  if(diagramaR.error) console.error('diagrama_asientos:', diagramaR.error.message);
+  if(entradasR.error) console.error('entradas:', entradasR.error.message);
+
+  const layout = {};
+  (diagramaR.data||[]).forEach(d=>{
+    const key = d.tipo==='general' ? `general:${d.numero}` : `palco:${d.palco_id}:${d.numero}`;
+    layout[key] = {x:Number(d.pos_x), y:Number(d.pos_y)};
+  });
+
+  CONFIG = {
+    palcos: (palcosR.data||[]).map(p=>({ id:p.id, nombre:p.nombre, cantidad:p.cantidad_sillas, precio:Number(p.precio) })),
+    general: generalR.data ? { cantidad:generalR.data.cantidad_sillas, precio:Number(generalR.data.precio) } : {cantidad:0, precio:0},
+    layout
+  };
+
+  TICKETS = (entradasR.data||[]).map(t=>({
+    id: t.codigo_qr, dbId: t.id, nombre:t.nombre, cedula:t.cedula, telefono:t.telefono,
+    tipo:t.tipo, palcoId:t.palco_id, palcoNombre:t.palco_nombre, silla:t.silla_numero,
+    valor:Number(t.valor), vendidoAt:t.vendido_at, escaneado:t.escaneado, escaneadoAt:t.escaneado_at,
+    hash:t.hash_validacion
+  }));
+}
+
+function requireConnection(){
+  if(!SUPABASE_READY){
+    alert('Aún no has conectado la base de datos. Ve al Dashboard → pestaña "Conexión" y configura tu Supabase.');
+    return false;
+  }
+  return true;
+}
+
+async function insertPalco(nombre, cantidad, precio){
+  if(!requireConnection()) return;
+  const {error} = await sb.from('palcos').insert({nombre, cantidad_sillas:cantidad, precio});
+  if(error) alert('No se pudo guardar el palco: '+error.message);
+}
+async function deletePalco(id){
+  if(!requireConnection()) return;
+  const {error} = await sb.from('palcos').delete().eq('id', id);
+  if(error) alert('No se pudo eliminar el palco: '+error.message);
+}
+async function upsertGeneral(cantidad, precio){
+  if(!requireConnection()) return;
+  const {error} = await sb.from('configuracion_general').update({cantidad_sillas:cantidad, precio, updated_at:new Date().toISOString()}).eq('id',1);
+  if(error) alert('No se pudo guardar la configuración general: '+error.message);
+}
+async function upsertLayoutSeat(tipo, palcoId, numero, x, y){
+  if(!requireConnection()) return;
+  const {error} = await sb.from('diagrama_asientos')
+    .upsert({tipo, palco_id:palcoId, numero, pos_x:x, pos_y:y}, {onConflict:'tipo,palco_id,numero'});
+  if(error) alert('No se pudo guardar la posición: '+error.message);
+}
+async function insertEntrada(t){
+  if(!requireConnection()) return false;
+  const {error} = await sb.from('entradas').insert({
+    codigo_qr:t.id, hash_validacion:t.hash, nombre:t.nombre, cedula:t.cedula, telefono:t.telefono,
+    tipo:t.tipo, palco_id:t.palcoId, palco_nombre:t.palcoNombre, silla_numero:t.silla,
+    valor:t.valor, vendido_at:t.vendidoAt, escaneado:false
+  });
+  if(error){ alert('No se pudo vender la entrada: '+error.message); return false; }
+  return true;
+}
+async function marcarEscaneada(codigoQr, fecha){
+  if(!SUPABASE_READY) return;
+  const {error} = await sb.from('entradas').update({escaneado:true, escaneado_at:fecha}).eq('codigo_qr', codigoQr);
+  if(error) console.error('No se pudo marcar como escaneada:', error.message);
+}
+
+function money(n){ return '$' + Number(n||0).toLocaleString('es-CO'); }
+function uid(){ return 'tk_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function simpleHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) >>> 0; }
+  return h.toString(36);
+}
+
+/* =========================================================================
+   NAVEGACIÓN
+   ========================================================================= */
+document.querySelectorAll('.navtab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.navtab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view==='dashboard' && dashUnlocked) refreshDashboard();
+    if(btn.dataset.view==='scanner' && scannerUnlocked) refreshScannerStats();
+    if(btn.dataset.view==='venta'){ loadAll().then(()=>{ renderPalcoOptions(); renderSeatPicker(); }); }
+  });
+});
+
+document.querySelectorAll('.subtab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.subtab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.subview').forEach(v=>v.style.display='none');
+    btn.classList.add('active');
+    const el = document.getElementById('sub-'+btn.dataset.sub);
+    el.style.display='block';
+    if(btn.dataset.sub==='conexion') refreshConnectionPanel();
+    if(btn.dataset.sub==='resumen') refreshDashboard();
+    if(btn.dataset.sub==='ubicaciones') refreshUbicaciones();
+    if(btn.dataset.sub==='diagrama') refreshDiagram();
+    if(btn.dataset.sub==='entradas') refreshTicketsTable();
+  });
+});
+
+/* =========================================================================
+   SECCIÓN 1: VENTA DE ENTRADAS
+   ========================================================================= */
+function allSeatsFor(tipo, palcoId){
+  if(tipo==='general'){
+    return Array.from({length: CONFIG.general.cantidad}, (_,i)=> i+1);
+  }
+  const palco = CONFIG.palcos.find(p=>p.id===palcoId);
+  if(!palco) return [];
+  return Array.from({length: palco.cantidad}, (_,i)=> i+1);
+}
+function isSold(tipo, palcoId, num){
+  return TICKETS.some(t=> t.tipo===tipo && (tipo==='general' || t.palcoId===palcoId) && t.silla===num);
+}
+function currentPrice(){
+  const tipo = document.getElementById('f-tipo').value;
+  if(tipo==='general') return CONFIG.general.precio;
+  const palcoId = document.getElementById('f-palco').value;
+  const palco = CONFIG.palcos.find(p=>p.id===palcoId);
+  return palco ? palco.precio : 0;
+}
+let selectedSeat = null;
+
+function renderPalcoOptions(){
+  const sel = document.getElementById('f-palco');
+  sel.innerHTML = CONFIG.palcos.map(p=>`<option value="${p.id}">${p.nombre} (${money(p.precio)})</option>`).join('');
+}
+function renderSeatPicker(){
+  const tipo = document.getElementById('f-tipo').value;
+  const palcoId = tipo==='palco' ? document.getElementById('f-palco').value : null;
+  const seats = allSeatsFor(tipo, palcoId);
+  const box = document.getElementById('f-sillas');
+  selectedSeat = null;
+  box.innerHTML = seats.map(n=>{
+    const sold = isSold(tipo, palcoId, n);
+    return `<div class="seat ${sold?'sold':'available'}" data-n="${n}" ${sold?'':'onclick="pickSeat('+n+')"'}>${n}</div>`;
+  }).join('') || '<p class="muted" style="font-size:13px;">No hay sillas configuradas todavía. El administrador debe crearlas en el Dashboard.</p>';
+}
+function pickSeat(n){
+  selectedSeat = n;
+  document.querySelectorAll('#f-sillas .seat').forEach(el=>{
+    el.classList.toggle('selected', Number(el.dataset.n)===n);
+  });
+}
+document.getElementById('f-tipo').addEventListener('change', ()=>{
+  const tipo = document.getElementById('f-tipo').value;
+  document.getElementById('f-palco-select').style.display = tipo==='palco' ? 'block':'none';
+  renderSeatPicker();
+});
+document.getElementById('f-palco').addEventListener('change', renderSeatPicker);
+
+document.getElementById('btn-generar').addEventListener('click', async ()=>{
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const cedula = document.getElementById('f-cedula').value.trim();
+  const telefono = document.getElementById('f-telefono').value.trim();
+  const tipo = document.getElementById('f-tipo').value;
+  const palcoId = tipo==='palco' ? document.getElementById('f-palco').value : null;
+  const palco = tipo==='palco' ? CONFIG.palcos.find(p=>p.id===palcoId) : null;
+
+  if(!nombre || !cedula || !telefono){ alert('Completa nombre, cédula y teléfono.'); return; }
+  if(!selectedSeat){ alert('Selecciona una silla.'); return; }
+  if(tipo==='palco' && !palco){ alert('Selecciona un palco válido.'); return; }
+
+  const valor = currentPrice();
+  const id = uid();
+  const hash = simpleHash(id+cedula+valor+'#boleteria-salt');
+  const ticket = {
+    id, nombre, cedula, telefono, tipo,
+    palcoId: tipo==='palco' ? palcoId : null,
+    palcoNombre: tipo==='palco' ? palco.nombre : 'General',
+    silla: selectedSeat, valor,
+    vendidoAt: new Date().toISOString(),
+    escaneado:false, escaneadoAt:null, hash
+  };
+  TICKETS.push(ticket);
+  const ok = await insertEntrada(ticket);
+  if(!ok){ TICKETS.pop(); return; }
+  renderSeatPicker();
+  showTicketPreview(ticket);
+});
+
+function showTicketPreview(t){
+  const box = document.getElementById('ticket-preview');
+  box.innerHTML = `
+    <div class="row"><span>Nombre</span><span>${t.nombre}</span></div>
+    <div class="row"><span>Cédula</span><span>${t.cedula}</span></div>
+    <div class="row"><span>Teléfono</span><span>${t.telefono}</span></div>
+    <div class="row"><span>Ubicación</span><span>${t.tipo==='palco' ? t.palcoNombre+' · Silla '+t.silla : 'General · Silla '+t.silla}</span></div>
+    <div class="row"><span>Código</span><span class="mono">${t.id}</span></div>
+    <div class="price">${money(t.valor)}</div>
+    <div class="qrbox" id="qr-render"></div>
+  `;
+  new QRCode(document.getElementById('qr-render'), {
+    text: JSON.stringify({id:t.id, hash:t.hash}),
+    width:160, height:160
+  });
+}
+
+/* =========================================================================
+   SECCIÓN 2: ESCÁNER (password 1234)
+   ========================================================================= */
+let scannerUnlocked = false;
+let html5QrCode = null;
+
+document.getElementById('scanner-login').addEventListener('click', ()=>{
+  const val = document.getElementById('scanner-pass').value;
+  if(val === '1234'){
+    scannerUnlocked = true;
+    document.getElementById('scanner-gate').style.display='none';
+    document.getElementById('scanner-content').style.display='block';
+    document.getElementById('scanner-err').style.display='none';
+    startCamera();
+    refreshScannerStats();
+  } else {
+    document.getElementById('scanner-err').style.display='block';
+  }
+});
+
+function startCamera(){
+  if(html5QrCode) return;
+  if(typeof Html5Qrcode === 'undefined') return;
+  html5QrCode = new Html5Qrcode("reader");
+  Html5Qrcode.getCameras().then(cams=>{
+    if(!cams || !cams.length) return;
+    html5QrCode.start(
+      {facingMode:"environment"},
+      { fps:10, qrbox:220 },
+      onScanSuccess,
+      ()=>{}
+    );
+  }).catch(()=>{ /* sin cámara disponible: se usa ingreso manual */ });
+}
+
+async function onScanSuccess(decodedText){
+  try{
+    const data = JSON.parse(decodedText);
+    await processTicketCode(data.id, data.hash);
+  }catch(e){
+    showScanResult('err', 'QR ilegible o inválido.');
+  }
+}
+async function manualScan(){
+  const id = document.getElementById('manual-code').value.trim();
+  if(!id) return;
+  const t = TICKETS.find(x=>x.id===id);
+  await processTicketCode(id, t ? t.hash : null);
+}
+async function processTicketCode(id, hash){
+  await loadAll();
+  const t = TICKETS.find(x=>x.id===id);
+  if(!t){ showScanResult('err','Entrada no encontrada.'); return; }
+  if(hash && t.hash !== hash){ showScanResult('err','Código no coincide (posible falsificación).'); return; }
+  if(t.escaneado){
+    showScanResult('warn', `Ya fue escaneada: ${t.nombre} · ${new Date(t.escaneadoAt).toLocaleTimeString('es-CO')}`);
+    return;
+  }
+  t.escaneado = true;
+  t.escaneadoAt = new Date().toISOString();
+  await marcarEscaneada(t.id, t.escaneadoAt);
+  showScanResult('ok', `Entrada válida: ${t.nombre} · ${t.tipo==='palco' ? t.palcoNombre+' Silla '+t.silla : 'General Silla '+t.silla}`);
+  refreshScannerStats();
+}
+function showScanResult(type,msg){
+  document.getElementById('scan-result-box').innerHTML = `<div class="scan-result ${type}">${msg}</div>`;
+}
+async function refreshScannerStats(){
+  await loadAll();
+  document.getElementById('st-vendidas').textContent = TICKETS.length;
+  const esc = TICKETS.filter(t=>t.escaneado).length;
+  document.getElementById('st-escaneadas').textContent = esc;
+  document.getElementById('st-pendientes').textContent = TICKETS.length - esc;
+  const log = TICKETS.filter(t=>t.escaneado).sort((a,b)=> new Date(b.escaneadoAt)-new Date(a.escaneadoAt)).slice(0,15);
+  document.getElementById('scan-log').innerHTML = log.map(t=>`
+    <tr><td>${t.nombre}</td><td>${t.tipo==='palco'? t.palcoNombre+' · '+t.silla : 'General · '+t.silla}</td>
+    <td>${new Date(t.escaneadoAt).toLocaleTimeString('es-CO')}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Sin escaneos aún.</td></tr>';
+}
+
+/* =========================================================================
+   SECCIÓN 3: DASHBOARD (password 0000)
+   ========================================================================= */
+let dashUnlocked = false;
+document.getElementById('dash-login').addEventListener('click', async ()=>{
+  const val = document.getElementById('dash-pass').value;
+  if(val === '0000'){
+    dashUnlocked = true;
+    document.getElementById('dash-gate').style.display='none';
+    document.getElementById('dash-content').style.display='block';
+    document.getElementById('dash-err').style.display='none';
+    await loadAll();
+    if(!SUPABASE_READY){
+      document.querySelectorAll('.subtab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.subview').forEach(v=>v.style.display='none');
+      document.querySelector('.subtab[data-sub="conexion"]').classList.add('active');
+      document.getElementById('sub-conexion').style.display='block';
+      refreshConnectionPanel();
+    } else {
+      refreshDashboard();
+    }
+  } else {
+    document.getElementById('dash-err').style.display='block';
+  }
+});
+
+function lockOut(which){
+  if(which==='scanner'){
+    scannerUnlocked=false;
+    document.getElementById('scanner-content').style.display='none';
+    document.getElementById('scanner-gate').style.display='block';
+    document.getElementById('scanner-pass').value='';
+    if(html5QrCode){ html5QrCode.stop().catch(()=>{}); html5QrCode=null; }
+  } else {
+    dashUnlocked=false;
+    document.getElementById('dash-content').style.display='none';
+    document.getElementById('dash-gate').style.display='block';
+    document.getElementById('dash-pass').value='';
+  }
+}
+
+function refreshConnectionPanel(){
+  document.getElementById('conn-url').value = SUPABASE_URL;
+  document.getElementById('conn-key').value = SUPABASE_ANON_KEY;
+  const badge = document.getElementById('conn-badge');
+  if(SUPABASE_READY){
+    badge.textContent = 'Conectado';
+    badge.className = 'badge ok';
+  } else {
+    badge.textContent = 'Sin conectar';
+    badge.className = 'badge pending';
+  }
+  document.getElementById('conn-status').textContent = '';
+}
+
+async function testConnection(){
+  const url = document.getElementById('conn-url').value.trim();
+  const key = document.getElementById('conn-key').value.trim();
+  const status = document.getElementById('conn-status');
+  if(!url.startsWith('http') || key.length < 20){
+    status.textContent = 'Revisa la URL y la key: no tienen el formato esperado.';
+    status.style.color = 'var(--err)';
+    return;
+  }
+  status.textContent = 'Probando conexión...';
+  status.style.color = 'var(--muted)';
+  try{
+    const tempClient = window.supabase.createClient(url, key);
+    const {error} = await tempClient.from('palcos').select('id').limit(1);
+    if(error){
+      status.textContent = 'No se pudo conectar: ' + error.message + '. ¿Ya corriste supabase_schema.sql?';
+      status.style.color = 'var(--err)';
+    } else {
+      status.textContent = 'Conexión exitosa. Ya puedes guardar.';
+      status.style.color = 'var(--ok)';
+    }
+  }catch(e){
+    status.textContent = 'No se pudo conectar: ' + e.message;
+    status.style.color = 'var(--err)';
+  }
+}
+
+async function saveConnection(){
+  const url = document.getElementById('conn-url').value.trim();
+  const key = document.getElementById('conn-key').value.trim();
+  const status = document.getElementById('conn-status');
+  if(!initSupabaseClient(url, key)){
+    status.textContent = 'Revisa la URL y la key antes de guardar.';
+    status.style.color = 'var(--err)';
+    return;
+  }
+  await persistConnection(url, key);
+  await loadAll();
+  refreshConnectionPanel();
+  status.textContent = 'Guardado y conectado ✓';
+  status.style.color = 'var(--ok)';
+}
+
+async function clearConnection(){
+  await forgetConnection();
+  document.getElementById('conn-url').value = '';
+  document.getElementById('conn-key').value = '';
+  await loadAll();
+  refreshConnectionPanel();
+  document.getElementById('conn-status').textContent = 'Se olvidaron las credenciales.';
+  document.getElementById('conn-status').style.color = 'var(--muted)';
+}
+
+async function refreshDashboard(){
+  await loadAll();
+  const totalDinero = TICKETS.reduce((s,t)=> s+Number(t.valor||0), 0);
+  document.getElementById('d-total-dinero').textContent = money(totalDinero);
+  document.getElementById('d-total-vendidas').textContent = TICKETS.length;
+  document.getElementById('d-total-escaneadas').textContent = TICKETS.filter(t=>t.escaneado).length;
+  document.getElementById('d-total-palcos').textContent = TICKETS.filter(t=>t.tipo==='palco').length;
+  document.getElementById('d-total-general').textContent = TICKETS.filter(t=>t.tipo==='general').length;
+
+  const totalSillasPalcos = CONFIG.palcos.reduce((s,p)=>s+p.cantidad,0);
+  const totalSillas = totalSillasPalcos + Number(CONFIG.general.cantidad||0);
+  document.getElementById('d-total-disponibles').textContent = totalSillas - TICKETS.length;
+}
+
+/* ---- Ubicaciones (palcos / general) ---- */
+async function addPalco(){
+  const nombre = document.getElementById('p-nombre').value.trim();
+  const cantidad = Number(document.getElementById('p-cantidad').value);
+  const precio = Number(document.getElementById('p-precio').value);
+  if(!nombre || cantidad<=0){ alert('Ingresa nombre y cantidad válidos.'); return; }
+  await insertPalco(nombre, cantidad, precio);
+  await loadAll();
+  document.getElementById('p-nombre').value='';
+  refreshUbicaciones();
+}
+async function removePalco(id){
+  await deletePalco(id);
+  await loadAll();
+  refreshUbicaciones();
+}
+async function saveGeneral(){
+  const cantidad = Number(document.getElementById('g-cantidad').value);
+  const precio = Number(document.getElementById('g-precio').value);
+  await upsertGeneral(cantidad, precio);
+  await loadAll();
+  document.getElementById('general-status').textContent = 'Guardado ✓';
+  setTimeout(()=> document.getElementById('general-status').textContent='', 1500);
+}
+function refreshUbicaciones(){
+  document.getElementById('g-cantidad').value = CONFIG.general.cantidad;
+  document.getElementById('g-precio').value = CONFIG.general.precio;
+  document.getElementById('palco-list').innerHTML = CONFIG.palcos.map(p=>`
+    <div class="tag">${p.nombre} · ${p.cantidad} sillas · ${money(p.precio)} <button onclick="removePalco('${p.id}')">×</button></div>
+  `).join('') || '<p class="muted" style="font-size:13px;">Sin palcos configurados.</p>';
+}
+
+/* ---- Diagrama 2D ---- */
+let placingSeatKey = null;
+function allSeatKeys(){
+  const keys = [];
+  for(let i=1;i<=CONFIG.general.cantidad;i++) keys.push({key:`general:${i}`, label:`General ${i}`});
+  CONFIG.palcos.forEach(p=>{
+    for(let i=1;i<=p.cantidad;i++) keys.push({key:`palco:${p.id}:${i}`, label:`${p.nombre} ${i}`});
+  });
+  return keys;
+}
+function refreshDiagram(){
+  const sel = document.getElementById('diag-seat-select');
+  const keys = allSeatKeys();
+  sel.innerHTML = keys.map(k=>`<option value="${k.key}">${k.label}${CONFIG.layout[k.key]?' ✓':''}</option>`).join('');
+  const diagram = document.getElementById('diagram');
+  diagram.querySelectorAll('.dseat').forEach(e=>e.remove());
+  keys.forEach(k=>{
+    const pos = CONFIG.layout[k.key];
+    if(!pos) return;
+    const [type, a, b] = k.key.split(':');
+    const num = type==='general' ? Number(a) : Number(b);
+    const palcoId = type==='palco' ? a : null;
+    const sold = isSold(type, palcoId, num);
+    const el = document.createElement('div');
+    el.className = 'dseat' + (sold ? ' sold':'');
+    el.style.left = pos.x+'%';
+    el.style.top = pos.y+'%';
+    el.textContent = num;
+    el.title = k.label || k.key;
+    diagram.appendChild(el);
+  });
+}
+function armPlacement(){
+  placingSeatKey = document.getElementById('diag-seat-select').value;
+}
+document.getElementById('diagram').addEventListener('click', async (e)=>{
+  if(!placingSeatKey) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = Number(((e.clientX - rect.left)/rect.width*100).toFixed(1));
+  const y = Number(((e.clientY - rect.top)/rect.height*100).toFixed(1));
+  const [type, a, b] = placingSeatKey.split(':');
+  const palcoId = type==='palco' ? a : null;
+  const numero = type==='general' ? Number(a) : Number(b);
+  CONFIG.layout[placingSeatKey] = {x, y};
+  await upsertLayoutSeat(type, palcoId, numero, x, y);
+  placingSeatKey = null;
+  refreshDiagram();
+});
+
+/* ---- Tabla de entradas vendidas ---- */
+function refreshTicketsTable(){
+  const rows = TICKETS.slice().sort((a,b)=> new Date(b.vendidoAt)-new Date(a.vendidoAt));
+  document.getElementById('tickets-table').innerHTML = rows.map(t=>`
+    <tr>
+      <td><div class="qrmini" id="qr-${t.id}"></div></td>
+      <td>${t.nombre}</td>
+      <td>${t.cedula}</td>
+      <td>${t.telefono}</td>
+      <td>${t.tipo==='palco' ? 'Palco' : 'General'}</td>
+      <td>${t.tipo==='palco' ? t.palcoNombre+' · Silla '+t.silla : 'Silla '+t.silla}</td>
+      <td>${money(t.valor)}</td>
+      <td>${t.escaneado ? '<span class="badge ok">Escaneada</span>' : '<span class="badge pending">Pendiente</span>'}</td>
+    </tr>`).join('') || `<tr><td colspan="8" class="muted">Aún no hay entradas vendidas.</td></tr>`;
+
+  rows.forEach(t=>{
+    const el = document.getElementById('qr-'+t.id);
+    if(el) new QRCode(el, { text: JSON.stringify({id:t.id,hash:t.hash}), width:42, height:42, correctLevel: QRCode.CorrectLevel.M });
+  });
+}
+function exportCSV(){
+  const header = ['ID','Nombre','Cedula','Telefono','Tipo','Ubicacion','Silla','Valor','Vendido','Escaneado'];
+  const lines = [header.join(',')];
+  TICKETS.forEach(t=>{
+    lines.push([t.id, t.nombre, t.cedula, t.telefono, t.tipo, t.palcoNombre||'General', t.silla, t.valor, t.vendidoAt, t.escaneado].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'entradas_vendidas.csv';
+  a.click();
+}
+
+/* =========================================================================
+   INICIO
+   ========================================================================= */
+(async function init(){
+  await loadSavedConnection();
+  await loadAll();
+  renderPalcoOptions();
+  renderSeatPicker();
+})();
+</script>
+</body>
+</html>
