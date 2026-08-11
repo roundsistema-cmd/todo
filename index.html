@@ -536,7 +536,7 @@ document.getElementById('btnVender').addEventListener('click', async () => {
   const nombre = document.getElementById('compradorNombre').value.trim();
   const email = document.getElementById('compradorEmail').value.trim();
   const tel = document.getElementById('compradorTel').value.trim();
-  let precio = Number(document.getElementById('precioEntrada').value || 0);
+  let precio = 0;
   let sillaId = null, palcoId = null, extraLabel = 'Entrada general';
 
   if(!nombre){ msg.innerHTML = '<div class="msg msg-err">El nombre del comprador es obligatorio.</div>'; return; }
@@ -546,7 +546,7 @@ document.getElementById('btnVender').addEventListener('click', async () => {
     palcoId = document.getElementById('selPalco').value;
     if(!sillaId){ msg.innerHTML = '<div class="msg msg-err">Selecciona una silla disponible.</div>'; return; }
     const { data: silla } = await sb.from('sillas').select('*, palcos(nombre)').eq('id', sillaId).single();
-    precio = precio || Number(silla.precio || 0);
+    precio = Number(silla.precio || 0);
     extraLabel = `${silla.palcos ? silla.palcos.nombre : 'Palco'} · Silla ${silla.numero}`;
   }
 
@@ -558,17 +558,20 @@ document.getElementById('btnVender').addEventListener('click', async () => {
   }).select().single();
 
   if(error){ msg.innerHTML = '<div class="msg msg-err">Error: ' + error.message + '</div>'; return; }
+  if(!ticket){ msg.innerHTML = '<div class="msg msg-err">No se pudo confirmar la creación de la entrada. Intenta de nuevo.</div>'; return; }
 
   if(sillaId){
     await sb.from('sillas').update({ estado: 'vendida' }).eq('id', sillaId);
     await loadSillasDisponibles(palcoId);
   }
 
-  msg.innerHTML = '<div class="msg msg-ok">Entrada generada correctamente.</div>';
-  mostrarTicket(ticket, tipo === 'silla' ? 'SILLA NUMERADA' : 'GENERAL', extraLabel);
+  const qrOk = await mostrarTicket(ticket, tipo === 'silla' ? 'SILLA NUMERADA' : 'GENERAL', extraLabel);
+  msg.innerHTML = qrOk
+    ? '<div class="msg msg-ok">Entrada generada correctamente.</div>'
+    : '<div class="msg msg-warn">Entrada guardada, pero hubo un problema generando el QR. Puedes recargar e intentarlo de nuevo.</div>';
 });
 
-function mostrarTicket(ticket, tipoLabel, extra){
+async function mostrarTicket(ticket, tipoLabel, extra){
   document.getElementById('ticketPlaceholder').style.display = 'none';
   document.getElementById('ticketPreviewWrap').style.display = 'block';
   document.getElementById('tkTipo').textContent = tipoLabel;
@@ -577,7 +580,16 @@ function mostrarTicket(ticket, tipoLabel, extra){
   document.getElementById('tkPrecio').textContent = fmtMoney(ticket.precio);
   document.getElementById('tkCodigo').textContent = ticket.codigo_qr;
   const canvas = document.getElementById('qrCanvas');
-  QRCode.toCanvas(canvas, ticket.codigo_qr, { width: 120, margin: 1, color: { dark:'#0B0D17', light:'#F2F1EC' } });
+  try{
+    if(typeof QRCode === 'undefined'){
+      throw new Error('La librería QR no cargó (revisa tu conexión a internet).');
+    }
+    await QRCode.toCanvas(canvas, ticket.codigo_qr, { width: 120, margin: 1, color: { dark:'#0B0D17', light:'#F2F1EC' } });
+    return true;
+  }catch(err){
+    console.error('Error generando QR:', err);
+    return false;
+  }
 }
 
 document.getElementById('btnDescargarQR').addEventListener('click', () => {
@@ -594,7 +606,6 @@ document.getElementById('btnNuevaVenta').addEventListener('click', () => {
   document.getElementById('compradorNombre').value = '';
   document.getElementById('compradorEmail').value = '';
   document.getElementById('compradorTel').value = '';
-  document.getElementById('precioEntrada').value = '';
 });
 
 document.getElementById('scannerUnlockBtn').addEventListener('click', () => {
