@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asamblea PH · Videollamada y Votación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://meet.jit.si/external_api.js"></script>
+<style>
+:root{
+  --bg:#0B0D17; --bg-panel:#14172A; --bg-panel-2:#1B1F38; --border:#2A2F4C;
+  --text:#F2F1EC; --text-dim:#9195B5; --gold:#E8B84B; --teal:#34D8C6;
+  --red:#E5595F; --green:#59C97B;
+  --font-display:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);}
+h1,h2,h3,h4{font-family:var(--font-display);margin:0 0 4px;}
+p{margin:0;}
+button{font-family:var(--font-body);cursor:pointer;}
+.app{min-height:100vh;display:flex;flex-direction:column;}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,var(--bg-panel),var(--bg));position:sticky;top:0;z-index:30;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold);}
+.brand span{font-family:var(--font-display);font-weight:700;font-size:18px;}
+.tabs{display:flex;gap:6px;background:var(--bg-panel-2);padding:4px;border-radius:10px;border:1px solid var(--border);}
+.tab-btn{border:none;background:transparent;color:var(--text-dim);padding:9px 16px;border-radius:8px;font-weight:600;font-size:13.5px;transition:.15s;}
+.tab-btn.active{background:var(--gold);color:#1A1300;}
+.tab-btn:not(.active):hover{color:var(--text);}
+.main{flex:1;padding:26px 24px 60px;max-width:1180px;margin:0 auto;width:100%;}
+.section{display:none;animation:fade .2s ease;}
+.section.active{display:block;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+.eyebrow{color:var(--gold);font-family:var(--font-mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.page-head{margin-bottom:22px;}
+.page-head p{color:var(--text-dim);margin-top:6px;font-size:14px;}
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;padding:22px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+@media(max-width:860px){.grid-2{grid-template-columns:1fr;}.grid-3{grid-template-columns:1fr 1fr;}}
+label{display:block;font-size:12.5px;color:var(--text-dim);margin:14px 0 6px;font-weight:600;}
+label:first-child{margin-top:0;}
+input[type=text],input[type=email],input[type=number],input[type=password],select{
+  width:100%;background:var(--bg-panel-2);border:1px solid var(--border);color:var(--text);
+  padding:10px 12px;border-radius:8px;font-size:14px;outline:none;transition:.15s;
+}
+input:focus,select:focus{border-color:var(--gold);}
+.btn{border:none;border-radius:9px;padding:11px 18px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;gap:8px;transition:.15s;}
+.btn-gold{background:var(--gold);color:#1A1300;} .btn-gold:hover{background:#F2C766;}
+.btn-teal{background:var(--teal);color:#012621;}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text);}
+.btn-outline:hover{border-color:var(--gold);color:var(--gold);}
+.btn-outline.active{border-color:var(--gold);color:var(--gold);background:rgba(232,184,74,.1);}
+.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);}
+.btn-sm{padding:6px 10px;font-size:12.5px;border-radius:7px;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.msg{padding:10px 12px;border-radius:8px;font-size:13.5px;margin-top:12px;font-weight:600;}
+.msg-ok{background:rgba(89,201,123,.12);color:var(--green);border:1px solid rgba(89,201,123,.35);}
+.msg-err{background:rgba(229,89,95,.12);color:var(--red);border:1px solid rgba(229,89,95,.35);}
+.msg-warn{background:rgba(232,184,74,.12);color:var(--gold);border:1px solid rgba(232,184,74,.35);}
+.lock-wrap{max-width:360px;margin:60px auto;text-align:center;}
+.lock-wrap .panel{padding:32px 28px;}
+.lock-icon{width:46px;height:46px;border-radius:50%;background:var(--bg-panel-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:20px;}
+.stat-card{background:var(--bg-panel-2);border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+.stat-card .val{font-family:var(--font-display);font-size:26px;font-weight:700;color:var(--gold);}
+.stat-card .lbl{font-size:12px;color:var(--text-dim);margin-top:2px;}
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;color:var(--text-dim);font-weight:600;padding:9px 10px;border-bottom:1px solid var(--border);font-size:12px;text-transform:uppercase;}
+td{padding:9px 10px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+.badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-green{background:rgba(89,201,123,.14);color:var(--green);}
+.badge-gold{background:rgba(232,184,74,.14);color:var(--gold);}
+.badge-gray{background:rgba(145,149,181,.14);color:var(--text-dim);}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.between{display:flex;justify-content:space-between;align-items:center;}
+.small{font-size:12.5px;color:var(--text-dim);}
+.divider{height:1px;background:var(--border);margin:20px 0;}
+.inner-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;}
+.opt-input-row{display:flex;gap:8px;margin-top:8px;}
+.opt-input-row input{flex:1;}
+.bar-wrap{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;height:10px;overflow:hidden;margin-top:6px;}
+.bar-fill{height:100%;background:var(--gold);border-radius:8px;transition:width .3s;}
+.opt-row{margin-bottom:14px;}
+.opt-vote-btn{width:100%;text-align:left;padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-panel-2);color:var(--text);font-weight:600;font-size:14.5px;transition:.15s;}
+.opt-vote-btn:hover{border-color:var(--gold);}
+.opt-vote-btn.selected{border-color:var(--gold);background:rgba(232,184,74,.12);color:var(--gold);}
+.question-card{background:var(--bg-panel-2);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px;}
+::placeholder{color:#5c6187;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="brand"><div class="dot"></div><span id="brandNombre">Asamblea PH</span></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="asamblea">Asamblea</button>
+      <button class="tab-btn" data-tab="admin">Administrador</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ============ ASAMBLEA (usuario) ============ -->
+    <div class="section active" id="tab-asamblea">
+
+      <!-- Login -->
+      <div id="loginWrap" class="lock-wrap">
+        <div class="panel">
+          <div class="lock-icon">🏢</div>
+          <h3>Ingreso de copropietario</h3>
+          <p class="small" style="margin-top:6px;">Ingresa con tu correo y el código de acceso entregado por la administración.</p>
+          <label>Correo electrónico</label>
+          <input type="email" id="loginCorreo" placeholder="correo@ejemplo.com">
+          <label>Código de acceso</label>
+          <input type="text" id="loginCodigo" placeholder="Código">
+          <button class="btn btn-gold" id="btnLogin" style="margin-top:16px;width:100%;justify-content:center;">Ingresar</button>
+          <div id="loginMsg"></div>
+        </div>
+      </div>
+
+      <!-- App usuario -->
+      <div id="userApp" style="display:none;">
+        <div class="page-head between">
+          <div>
+            <div class="eyebrow">Copropietario</div>
+            <h1 id="userNombreHead">—</h1>
+            <p id="userInfoLine">—</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btnLogout">Cerrar sesión</button>
+        </div>
+
+        <div class="inner-tabs">
+          <button class="btn btn-outline inner-tab active" data-inner="video">Videollamada</button>
+          <button class="btn btn-outline inner-tab" data-inner="votacion">Votación</button>
+        </div>
+
+        <div id="inner-video" class="inner-section">
+          <div class="panel">
+            <div id="videoStatusBannerUser" style="display:none;"></div>
+            <div id="jitsiContainerUser" style="width:100%;height:70vh;border-radius:12px;overflow:hidden;background:#000;margin-top:10px;"></div>
+          </div>
+        </div>
+
+        <div id="inner-votacion" class="inner-section" style="display:none;">
+          <div id="votacionActivaWrap"></div>
+          <div class="divider"></div>
+          <h3 style="margin-bottom:10px;">Historial de votaciones cerradas</h3>
+          <div id="votacionHistorialWrap"><p class="small">Aún no hay votaciones cerradas.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ ADMIN ============ -->
+    <div class="section" id="tab-admin">
+      <div class="lock-wrap" id="adminLock">
+        <div class="panel">
+          <div class="lock-icon">🔒</div>
+          <h3>Panel de administración</h3>
+          <p class="small" style="margin-top:6px;">Ingresa la contraseña de administrador.</p>
+          <input type="password" id="adminPass" placeholder="Contraseña" style="margin-top:16px;">
+          <button class="btn btn-gold" id="adminUnlockBtn" style="margin-top:12px;width:100%;justify-content:center;">Entrar</button>
+          <div id="adminLockMsg"></div>
+        </div>
+      </div>
+
+      <div id="adminContent" style="display:none;">
+        <div class="page-head between">
+          <div>
+            <div class="eyebrow">Administración</div>
+            <h1>Dashboard de la asamblea</h1>
+          </div>
+          <button class="btn btn-outline btn-sm" id="adminLockOut">Cerrar sesión</button>
+        </div>
+
+        <div class="inner-tabs">
+          <button class="btn btn-outline inner-tab-admin active" data-inner-admin="online">En línea</button>
+          <button class="btn btn-outline inner-tab-admin" data-inner-admin="video">Videollamada</button>
+          <button class="btn btn-outline inner-tab-admin" data-inner-admin="preguntas">Preguntas</button>
+          <button class="btn btn-outline inner-tab-admin" data-inner-admin="excel">Cargar Excel</button>
+          <button class="btn btn-outline inner-tab-admin" data-inner-admin="conexion">Conexión</button>
+        </div>
+
+        <!-- EN LÍNEA -->
+        <div id="adm-online" class="inner-section-admin">
+          <div class="grid-3" style="margin-bottom:20px;">
+            <div class="stat-card"><div class="val" id="onlineCount">0</div><div class="lbl">Copropietarios en línea</div></div>
+            <div class="stat-card"><div class="val" id="onlineCoefSum">0</div><div class="lbl">Coeficiente en línea</div></div>
+            <div class="stat-card"><div class="val" id="totalPropietarios">0</div><div class="lbl">Total registrados</div></div>
+          </div>
+          <div class="panel">
+            <h3>Conectados ahora</h3>
+            <table style="margin-top:10px;">
+              <thead><tr><th>Correo</th><th>Apartamento</th><th>Coeficiente</th></tr></thead>
+              <tbody id="onlineBody"><tr><td colspan="3" class="small">Sin conexiones activas.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- VIDEOLLAMADA -->
+        <div id="adm-video" class="inner-section-admin" style="display:none;">
+          <div class="panel" style="margin-bottom:20px;">
+            <div class="between">
+              <div>
+                <h3 id="videoLockTitle">Video habilitado para todos</h3>
+                <p class="small" style="margin-top:6px;max-width:520px;" id="videoLockDesc">Todos los copropietarios pueden usar cámara y micrófono en la videollamada.</p>
+              </div>
+              <button class="btn btn-danger btn-sm" id="btnToggleVideoLock">Bloquear video (solo audio admin)</button>
+            </div>
+            <div id="videoLockMsg"></div>
+          </div>
+          <div class="panel">
+            <h3 style="margin-bottom:10px;">Tu videollamada (administración)</h3>
+            <p class="small" style="margin-bottom:10px;">Te unes con tu propio audio. Cuando el video está bloqueado, tampoco verás tu cámara, solo tendrás micrófono.</p>
+            <div id="jitsiContainerAdmin" style="width:100%;height:420px;border-radius:12px;overflow:hidden;background:#000;"></div>
+          </div>
+        </div>
+
+        <!-- PREGUNTAS -->
+        <div id="adm-preguntas" class="inner-section-admin" style="display:none;">
+          <div class="panel" style="margin-bottom:20px;">
+            <h3>Nueva pregunta de votación</h3>
+            <label>Pregunta</label>
+            <input type="text" id="nuevaPreguntaTexto" placeholder="Ej: ¿Aprueba el presupuesto 2027?">
+            <label>Opciones de respuesta</label>
+            <div id="opcionesContainer">
+              <div class="opt-input-row"><input type="text" class="opcion-input" placeholder="Opción 1"></div>
+              <div class="opt-input-row"><input type="text" class="opcion-input" placeholder="Opción 2"></div>
+            </div>
+            <div class="row" style="margin-top:10px;">
+              <button class="btn btn-outline btn-sm" id="btnAgregarOpcion">+ Agregar opción</button>
+            </div>
+            <div class="row" style="margin-top:16px;">
+              <button class="btn btn-gold btn-sm" id="btnCrearPregunta">Crear pregunta</button>
+            </div>
+            <div id="preguntaMsg"></div>
+          </div>
+
+          <h3 style="margin-bottom:12px;">Preguntas</h3>
+          <div id="preguntasListWrap"><p class="small">Sin preguntas creadas.</p></div>
+        </div>
+
+        <!-- EXCEL -->
+        <div id="adm-excel" class="inner-section-admin" style="display:none;">
+          <div class="panel">
+            <h3>Cargar copropietarios desde Excel</h3>
+            <p class="small" style="margin:6px 0 14px;">
+              El archivo debe tener columnas: <b>correo</b>, <b>codigo_acceso</b> (opcional, se genera si falta), <b>apartamento</b>, <b>coeficiente</b>.
+            </p>
+            <input type="file" id="excelInput" accept=".xlsx,.xls,.csv">
+            <div class="row" style="margin-top:14px;">
+              <button class="btn btn-outline btn-sm" id="btnPreviewExcel">Previsualizar</button>
+              <button class="btn btn-gold btn-sm" id="btnCargarExcel" disabled>Cargar a Supabase</button>
+            </div>
+            <div id="excelMsg"></div>
+            <div class="divider"></div>
+            <div id="excelPreviewWrap"></div>
+          </div>
+        </div>
+
+        <!-- CONEXIÓN -->
+        <div id="adm-conexion" class="inner-section-admin" style="display:none;">
+          <div class="panel" style="max-width:520px;">
+            <h3>Conexión a Supabase</h3>
+            <p class="small" style="margin:6px 0 14px;">Pega la URL y la clave "anon public" de tu proyecto. Se guardan solo en este navegador.</p>
+            <label>Supabase URL</label>
+            <input type="text" id="cfgUrl" placeholder="https://xxxxx.supabase.co">
+            <label>Supabase anon key</label>
+            <input type="text" id="cfgKey" placeholder="eyJhbGciOi...">
+            <div class="row" style="margin-top:14px;">
+              <button class="btn btn-gold btn-sm" id="saveCfgBtn">Guardar y conectar</button>
+            </div>
+            <div id="cfgMsg"></div>
+            <div class="divider"></div>
+            <label>Nombre de la asamblea</label>
+            <input type="text" id="nombreAsambleaInput" placeholder="Asamblea de Copropietarios">
+            <label>Sala de videollamada</label>
+            <input type="text" id="salaVideoInput" placeholder="asamblea-ph-2026">
+            <div class="row" style="margin-top:14px;">
+              <button class="btn btn-outline btn-sm" id="btnGuardarConfigAsamblea">Guardar configuración</button>
+            </div>
+            <div id="configAsambleaMsg"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIGURACIÓN GENERAL
+   ========================================================= */
+const ADMIN_PASSWORD = 'admin2026'; // cámbiala aquí
+
+let sb = null;
+let presenceChannel = null;
+let dataChannel = null;
+let propietario = null; // sesión del copropietario logueado
+let configAsamblea = { nombre_asamblea: 'Asamblea de Copropietarios', sala_video: 'asamblea-ph-2026', video_bloqueado: 'false' };
+let jitsiUserApi = null;
+let jitsiAdminApi = null;
+
+function fmtCoef(n){ return Number(n||0).toLocaleString('es-CO', { maximumFractionDigits: 4 }); }
+function fmtPct(n){ return Number(n||0).toLocaleString('es-CO', { maximumFractionDigits: 2 }) + '%'; }
+
+/* =========================================================
+   CONEXIÓN SUPABASE
+   ========================================================= */
+function initSupabaseClient(){
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if(!url || !key) return false;
+  sb = supabase.createClient(url, key);
+  return true;
+}
+
+document.getElementById('cfgUrl').value = localStorage.getItem('sb_url') || '';
+document.getElementById('cfgKey').value = localStorage.getItem('sb_key') || '';
+
+document.getElementById('saveCfgBtn').addEventListener('click', async () => {
+  const url = document.getElementById('cfgUrl').value.trim();
+  const key = document.getElementById('cfgKey').value.trim();
+  const msg = document.getElementById('cfgMsg');
+  if(!url || !key){ msg.innerHTML = '<div class="msg msg-err">Completa ambos campos.</div>'; return; }
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  if(initSupabaseClient()){
+    msg.innerHTML = '<div class="msg msg-ok">Conectado.</div>';
+    await bootstrap();
+  }
+});
+
+/* =========================================================
+   NAVEGACIÓN
+   ========================================================= */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.inner-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.inner-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('inner-video').style.display = btn.dataset.inner === 'video' ? 'block' : 'none';
+    document.getElementById('inner-votacion').style.display = btn.dataset.inner === 'votacion' ? 'block' : 'none';
+    if(btn.dataset.inner === 'votacion') refreshVotacionUsuario();
+  });
+});
+document.querySelectorAll('.inner-tab-admin').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.inner-tab-admin').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.inner-section-admin').forEach(s=>s.style.display='none');
+    btn.classList.add('active');
+    document.getElementById('adm-' + btn.dataset.innerAdmin).style.display = 'block';
+    if(btn.dataset.innerAdmin === 'preguntas') refreshPreguntasAdmin();
+    if(btn.dataset.innerAdmin === 'online') refreshOnlinePanel();
+    if(btn.dataset.innerAdmin === 'video'){ refreshVideoLockUI(); if(!jitsiAdminApi) initJitsiAdmin(); }
+    if(btn.dataset.innerAdmin === 'conexion'){
+      document.getElementById('nombreAsambleaInput').value = configAsamblea.nombre_asamblea;
+      document.getElementById('salaVideoInput').value = configAsamblea.sala_video;
+    }
+  });
+});
+
+/* =========================================================
+   BOOTSTRAP
+   ========================================================= */
+async function bootstrap(){
+  if(!sb) return;
+  await loadConfigAsamblea();
+  setupDataChannel();
+
+  const saved = localStorage.getItem('propietario_sesion');
+  if(saved){
+    propietario = JSON.parse(saved);
+    mostrarAppUsuario();
+  }
+  if(sessionStorage.getItem('admin_ok')){
+    document.getElementById('adminLock').style.display = 'none';
+    document.getElementById('adminContent').style.display = 'block';
+    refreshOnlinePanel();
+    refreshVideoLockUI();
+  }
+}
+
+async function loadConfigAsamblea(){
+  const { data } = await sb.from('configuracion').select('*');
+  (data||[]).forEach(r => { configAsamblea[r.clave] = r.valor; });
+  document.getElementById('brandNombre').textContent = configAsamblea.nombre_asamblea || 'Asamblea PH';
+}
+
+document.getElementById('btnGuardarConfigAsamblea').addEventListener('click', async () => {
+  const nombre = document.getElementById('nombreAsambleaInput').value.trim() || 'Asamblea de Copropietarios';
+  const sala = document.getElementById('salaVideoInput').value.trim() || 'asamblea-ph-2026';
+  await sb.from('configuracion').upsert([
+    { clave: 'nombre_asamblea', valor: nombre },
+    { clave: 'sala_video', valor: sala }
+  ]);
+  document.getElementById('configAsambleaMsg').innerHTML = '<div class="msg msg-ok">Configuración guardada.</div>';
+  await loadConfigAsamblea();
+});
+
+/* =========================================================
+   LOGIN / LOGOUT COPROPIETARIO
+   ========================================================= */
+document.getElementById('btnLogin').addEventListener('click', async () => {
+  const msg = document.getElementById('loginMsg');
+  if(!sb){ msg.innerHTML = '<div class="msg msg-err">La app aún no está conectada a la base de datos. Contacta al administrador.</div>'; return; }
+  const correo = document.getElementById('loginCorreo').value.trim();
+  const codigo = document.getElementById('loginCodigo').value.trim();
+  if(!correo || !codigo){ msg.innerHTML = '<div class="msg msg-err">Completa ambos campos.</div>'; return; }
+
+  const { data, error } = await sb.from('propietarios').select('*').ilike('correo', correo).eq('codigo_acceso', codigo).maybeSingle();
+  if(error || !data){ msg.innerHTML = '<div class="msg msg-err">Correo o código incorrecto.</div>'; return; }
+
+  propietario = data;
+  localStorage.setItem('propietario_sesion', JSON.stringify(data));
+  mostrarAppUsuario();
+});
+
+function mostrarAppUsuario(){
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('userApp').style.display = 'block';
+  document.getElementById('userNombreHead').textContent = propietario.correo;
+  document.getElementById('userInfoLine').textContent = `Apartamento ${propietario.apartamento || '—'} · Coeficiente ${fmtCoef(propietario.coeficiente)}`;
+  trackPresence();
+  refreshVotacionUsuario();
+  initJitsiUser();
+}
+
+document.getElementById('btnLogout').addEventListener('click', () => {
+  localStorage.removeItem('propietario_sesion');
+  if(presenceChannel){ presenceChannel.untrack(); presenceChannel.unsubscribe(); presenceChannel = null; }
+  if(jitsiUserApi){ jitsiUserApi.dispose(); jitsiUserApi = null; }
+  propietario = null;
+  document.getElementById('loginWrap').style.display = 'block';
+  document.getElementById('userApp').style.display = 'none';
+});
+
+/* =========================================================
+   VIDEOLLAMADA (Jitsi) + BLOQUEO DE VIDEO POR EL ADMIN
+   ========================================================= */
+function jitsiToolbarButtons(isAdmin, bloqueado){
+  if(!bloqueado) return ['microphone','camera','hangup','tileview','fullscreen','chat'];
+  if(isAdmin) return ['microphone','hangup','fullscreen']; // admin: solo audio, sin cámara
+  return ['hangup','fullscreen']; // copropietarios: sin mic ni cámara, solo escuchan
+}
+
+function buildJitsi(containerId, isAdmin){
+  const container = document.getElementById(containerId);
+  if(!container) return null;
+  if(typeof JitsiMeetExternalAPI === 'undefined'){
+    container.innerHTML = '<p class="small" style="padding:16px;color:#E5595F;">No se pudo cargar el servicio de videollamada (Jitsi). Verifica tu conexión a internet.</p>';
+    return null;
+  }
+  const bloqueado = configAsamblea.video_bloqueado === 'true';
+  container.innerHTML = '';
+  const api = new JitsiMeetExternalAPI('meet.jit.si', {
+    roomName: configAsamblea.sala_video || 'asamblea-ph-2026',
+    parentNode: container,
+    width: '100%',
+    height: '100%',
+    configOverwrite: {
+      startWithVideoMuted: bloqueado,
+      startWithAudioMuted: bloqueado && !isAdmin,
+      prejoinPageEnabled: false
+    },
+    interfaceConfigOverwrite: {
+      TOOLBAR_BUTTONS: jitsiToolbarButtons(isAdmin, bloqueado)
+    },
+    userInfo: {
+      displayName: isAdmin ? 'Administración' : (propietario ? propietario.correo : 'Copropietario')
+    }
+  });
+  return api;
+}
+
+function initJitsiUser(){
+  if(jitsiUserApi){ jitsiUserApi.dispose(); jitsiUserApi = null; }
+  jitsiUserApi = buildJitsi('jitsiContainerUser', false);
+  const bloqueado = configAsamblea.video_bloqueado === 'true';
+  const banner = document.getElementById('videoStatusBannerUser');
+  if(bloqueado){
+    banner.style.display = 'block';
+    banner.innerHTML = '<div class="msg msg-warn">La administración desactivó el video. Solo puedes escuchar el audio de la administración.</div>';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function initJitsiAdmin(){
+  if(jitsiAdminApi){ jitsiAdminApi.dispose(); jitsiAdminApi = null; }
+  jitsiAdminApi = buildJitsi('jitsiContainerAdmin', true);
+}
+
+function refreshVideoLockUI(){
+  const bloqueado = configAsamblea.video_bloqueado === 'true';
+  document.getElementById('videoLockTitle').textContent = bloqueado
+    ? 'Video bloqueado (solo audio de administración)'
+    : 'Video habilitado para todos';
+  document.getElementById('videoLockDesc').textContent = bloqueado
+    ? 'Los copropietarios solo pueden escuchar el audio de la administración y votar. Nadie puede usar cámara ni micrófono, excepto la administración (solo audio).'
+    : 'Todos los copropietarios pueden usar cámara y micrófono en la videollamada.';
+  const btn = document.getElementById('btnToggleVideoLock');
+  btn.textContent = bloqueado ? 'Desbloquear video para todos' : 'Bloquear video (solo audio admin)';
+  btn.className = bloqueado ? 'btn btn-teal btn-sm' : 'btn btn-danger btn-sm';
+}
+
+document.getElementById('btnToggleVideoLock').addEventListener('click', async () => {
+  if(!sb) return;
+  const msg = document.getElementById('videoLockMsg');
+  const nuevoEstado = configAsamblea.video_bloqueado === 'true' ? 'false' : 'true';
+  const { error } = await sb.from('configuracion').upsert({ clave: 'video_bloqueado', valor: nuevoEstado });
+  if(error){ msg.innerHTML = '<div class="msg msg-err">Error: ' + error.message + '</div>'; return; }
+  configAsamblea.video_bloqueado = nuevoEstado;
+  refreshVideoLockUI();
+  initJitsiAdmin();
+  msg.innerHTML = '<div class="msg msg-ok">Cambio aplicado.</div>';
+});
+
+/* =========================================================
+   PRESENCIA (usuarios conectados)
+   ========================================================= */
+function trackPresence(){
+  if(!sb || !propietario) return;
+  presenceChannel = sb.channel('asamblea-online', { config: { presence: { key: propietario.id } } });
+  presenceChannel.subscribe(async (status) => {
+    if(status === 'SUBSCRIBED'){
+      await presenceChannel.track({
+        correo: propietario.correo,
+        apartamento: propietario.apartamento,
+        coeficiente: propietario.coeficiente
+      });
+    }
+  });
+}
+
+let adminPresenceChannel = null;
+function setupAdminPresenceListener(){
+  if(adminPresenceChannel) return;
+  adminPresenceChannel = sb.channel('asamblea-online');
+  adminPresenceChannel.on('presence', { event: 'sync' }, () => refreshOnlinePanel());
+  adminPresenceChannel.subscribe();
+}
+
+function getOnlineList(){
+  const ch = adminPresenceChannel || presenceChannel;
+  if(!ch) return [];
+  const state = ch.presenceState();
+  const list = [];
+  Object.values(state).forEach(metas => { if(metas[0]) list.push(metas[0]); });
+  return list;
+}
+
+async function refreshOnlinePanel(){
+  if(!sb) return;
+  setupAdminPresenceListener();
+  const list = getOnlineList();
+  const sumCoef = list.reduce((s,u) => s + Number(u.coeficiente||0), 0);
+  document.getElementById('onlineCount').textContent = list.length;
+  document.getElementById('onlineCoefSum').textContent = fmtCoef(sumCoef);
+
+  const { count } = await sb.from('propietarios').select('*', { count: 'exact', head: true });
+  document.getElementById('totalPropietarios').textContent = count || 0;
+
+  const body = document.getElementById('onlineBody');
+  body.innerHTML = list.length ? list.map(u => `
+    <tr><td>${u.correo}</td><td>${u.apartamento||'—'}</td><td>${fmtCoef(u.coeficiente)}</td></tr>
+  `).join('') : '<tr><td colspan="3" class="small">Sin conexiones activas.</td></tr>';
+}
+
+/* =========================================================
+   CANAL DE CAMBIOS EN VIVO (preguntas / votos)
+   ========================================================= */
+function setupDataChannel(){
+  if(dataChannel) return;
+  dataChannel = sb.channel('asamblea-datos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'preguntas' }, () => {
+      refreshVotacionUsuario(); refreshPreguntasAdmin();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'votos' }, () => {
+      refreshVotacionUsuario(); refreshPreguntasAdmin();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'configuracion' }, async () => {
+      await loadConfigAsamblea();
+      if(propietario) initJitsiUser();
+      if(sessionStorage.getItem('admin_ok')){
+        refreshVideoLockUI();
+        if(document.getElementById('adm-video').style.display !== 'none') initJitsiAdmin();
+      }
+    })
+    .subscribe();
+  // respaldo por si el realtime no está habilitado en el proyecto
+  setInterval(() => { refreshVotacionUsuario(); if(sessionStorage.getItem('admin_ok')) refreshPreguntasAdmin(); }, 8000);
+}
+
+/* =========================================================
+   PREGUNTAS - ADMIN
+   ========================================================= */
+document.getElementById('adminUnlockBtn').addEventListener('click', () => {
+  const val = document.getElementById('adminPass').value;
+  const msg = document.getElementById('adminLockMsg');
+  if(val === ADMIN_PASSWORD){
+    sessionStorage.setItem('admin_ok','1');
+    document.getElementById('adminLock').style.display = 'none';
+    document.getElementById('adminContent').style.display = 'block';
+    refreshOnlinePanel();
+    refreshVideoLockUI();
+  } else {
+    msg.innerHTML = '<div class="msg msg-err">Contraseña incorrecta.</div>';
+  }
+});
+document.getElementById('adminLockOut').addEventListener('click', () => {
+  sessionStorage.removeItem('admin_ok');
+  document.getElementById('adminLock').style.display = 'block';
+  document.getElementById('adminContent').style.display = 'none';
+});
+
+document.getElementById('btnAgregarOpcion').addEventListener('click', () => {
+  const cont = document.getElementById('opcionesContainer');
+  if(cont.children.length >= 8) return;
+  const div = document.createElement('div');
+  div.className = 'opt-input-row';
+  div.innerHTML = `<input type="text" class="opcion-input" placeholder="Opción ${cont.children.length+1}">`;
+  cont.appendChild(div);
+});
+
+document.getElementById('btnCrearPregunta').addEventListener('click', async () => {
+  const msg = document.getElementById('preguntaMsg');
+  if(!sb){ msg.innerHTML = '<div class="msg msg-err">No hay conexión con Supabase. Ve a la pestaña "Conexión", pega tu URL y anon key, y guarda.</div>'; return; }
+
+  const texto = document.getElementById('nuevaPreguntaTexto').value.trim();
+  const opciones = Array.from(document.querySelectorAll('.opcion-input')).map(i=>i.value.trim()).filter(Boolean);
+  if(!texto || opciones.length < 2){ msg.innerHTML = '<div class="msg msg-err">Escribe la pregunta y al menos 2 opciones.</div>'; return; }
+
+  try{
+    const { count, error: countError } = await sb.from('preguntas').select('*', { count: 'exact', head: true });
+    if(countError) throw countError;
+
+    const { data: pregunta, error } = await sb.from('preguntas').insert({ texto, estado: 'borrador', orden: (count||0)+1 }).select().single();
+    if(error) throw error;
+
+    const { error: opcionesError } = await sb.from('opciones').insert(opciones.map((textoOpcion, i) => ({ pregunta_id: pregunta.id, texto: textoOpcion, orden: i })));
+    if(opcionesError) throw opcionesError;
+
+    msg.innerHTML = '<div class="msg msg-ok">Pregunta creada.</div>';
+    document.getElementById('nuevaPreguntaTexto').value = '';
+    document.getElementById('opcionesContainer').innerHTML = `
+      <div class="opt-input-row"><input type="text" class="opcion-input" placeholder="Opción 1"></div>
+      <div class="opt-input-row"><input type="text" class="opcion-input" placeholder="Opción 2"></div>`;
+    refreshPreguntasAdmin();
+  }catch(err){
+    console.error('Error creando pregunta:', err);
+    msg.innerHTML = '<div class="msg msg-err">Error: ' + (err.message || err) + (err.hint ? ' — ' + err.hint : '') +
+      '<br>Si el error menciona "row-level security" o "policy", vuelve a ejecutar el archivo schema_asamblea.sql en el SQL Editor de Supabase.</div>';
+  }
+});
+
+async function fetchPreguntasConDatos(){
+  const { data: preguntas } = await sb.from('preguntas').select('*').order('orden');
+  const { data: opciones } = await sb.from('opciones').select('*').order('orden');
+  const { data: votos } = await sb.from('votos').select('*');
+  return (preguntas||[]).map(p => ({
+    ...p,
+    opciones: (opciones||[]).filter(o => o.pregunta_id === p.id).map(o => ({
+      ...o,
+      coeficiente: (votos||[]).filter(v => v.opcion_id === o.id).reduce((s,v)=>s+Number(v.coeficiente||0),0),
+      votos: (votos||[]).filter(v => v.opcion_id === o.id).length
+    }))
+  }));
+}
+
+async function refreshPreguntasAdmin(){
+  if(!sb || !sessionStorage.getItem('admin_ok')) return;
+  const preguntas = await fetchPreguntasConDatos();
+  const wrap = document.getElementById('preguntasListWrap');
+  if(!preguntas.length){ wrap.innerHTML = '<p class="small">Sin preguntas creadas.</p>'; return; }
+
+  wrap.innerHTML = preguntas.map(p => {
+    const totalCoef = p.opciones.reduce((s,o)=>s+o.coeficiente,0);
+    const umbral = Number(p.umbral_coeficiente||0);
+    const badge = p.estado === 'activa' ? '<span class="badge badge-green">Activa</span>' :
+                  p.estado === 'cerrada' ? '<span class="badge badge-gray">Cerrada</span>' :
+                  '<span class="badge badge-gold">Borrador</span>';
+    const opcionesHtml = p.opciones.map(o => {
+      const pct = umbral > 0 ? (o.coeficiente/umbral*100) : 0;
+      return `<div class="opt-row">
+        <div class="between"><span>${o.texto}</span><span class="small">${fmtCoef(o.coeficiente)} · ${o.votos} votos · ${fmtPct(pct)}</span></div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
+      </div>`;
+    }).join('');
+    return `<div class="question-card">
+      <div class="between">
+        <h4>${p.texto}</h4>${badge}
+      </div>
+      <p class="small" style="margin:6px 0 14px;">Umbral (coeficiente en línea al activar): ${fmtCoef(umbral)} · Total votado: ${fmtCoef(totalCoef)}</p>
+      ${opcionesHtml}
+      <div class="row" style="margin-top:14px;">
+        ${p.estado !== 'activa' ? `<button class="btn btn-teal btn-sm" onclick="activarPregunta('${p.id}')">Activar votación</button>` : ''}
+        ${p.estado === 'activa' ? `<button class="btn btn-danger btn-sm" onclick="detenerPregunta('${p.id}')">Detener votación</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function activarPregunta(id){
+  // cierra cualquier otra pregunta que esté activa
+  await sb.from('preguntas').update({ estado: 'cerrada', cerrada_at: new Date().toISOString() }).eq('estado','activa');
+  const list = getOnlineList();
+  const umbral = list.reduce((s,u)=>s+Number(u.coeficiente||0),0);
+  await sb.from('preguntas').update({ estado: 'activa', activada_at: new Date().toISOString(), umbral_coeficiente: umbral }).eq('id', id);
+  refreshPreguntasAdmin();
+}
+async function detenerPregunta(id){
+  await sb.from('preguntas').update({ estado: 'cerrada', cerrada_at: new Date().toISOString() }).eq('id', id);
+  refreshPreguntasAdmin();
+}
+
+/* =========================================================
+   VOTACIÓN - USUARIO
+   ========================================================= */
+async function refreshVotacionUsuario(){
+  if(!sb || !propietario) return;
+  const preguntas = await fetchPreguntasConDatos();
+  const activas = preguntas.filter(p => p.estado === 'activa');
+  const cerradas = preguntas.filter(p => p.estado === 'cerrada').sort((a,b)=> new Date(b.cerrada_at)-new Date(a.cerrada_at));
+
+  const { data: misVotos } = await sb.from('votos').select('*').eq('propietario_id', propietario.id);
+
+  const activaWrap = document.getElementById('votacionActivaWrap');
+  if(!activas.length){
+    activaWrap.innerHTML = '<div class="panel"><p class="small">No hay ninguna votación activa en este momento.</p></div>';
+  } else {
+    activaWrap.innerHTML = activas.map(p => {
+      const miVoto = (misVotos||[]).find(v => v.pregunta_id === p.id);
+      const umbral = Number(p.umbral_coeficiente||0);
+      const opcionesHtml = p.opciones.map(o => {
+        const pct = umbral > 0 ? (o.coeficiente/umbral*100) : 0;
+        const selected = miVoto && miVoto.opcion_id === o.id;
+        return `<button class="opt-vote-btn ${selected?'selected':''}" onclick="votar('${p.id}','${o.id}')">
+          ${o.texto}
+          <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div>
+          <div class="small" style="margin-top:4px;">${fmtPct(pct)} del coeficiente en línea</div>
+        </button>`;
+      }).join('');
+      return `<div class="panel question-card" style="margin-bottom:0;">
+        <div class="eyebrow">Votación activa</div>
+        <h2>${p.texto}</h2>
+        <p class="small" style="margin:6px 0 16px;">Quórum base (coeficiente en línea al iniciar): ${fmtCoef(umbral)}</p>
+        ${opcionesHtml}
+      </div>`;
+    }).join('');
+  }
+
+  const histWrap = document.getElementById('votacionHistorialWrap');
+  histWrap.innerHTML = cerradas.length ? cerradas.map(p => {
+    const umbral = Number(p.umbral_coeficiente||0);
+    const opcionesHtml = p.opciones.map(o => {
+      const pct = umbral > 0 ? (o.coeficiente/umbral*100) : 0;
+      return `<div class="opt-row"><div class="between"><span>${o.texto}</span><span class="small">${fmtPct(pct)}</span></div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${Math.min(pct,100)}%"></div></div></div>`;
+    }).join('');
+    return `<div class="question-card"><h4>${p.texto}</h4>
+      <p class="small" style="margin:6px 0 12px;">Quórum base: ${fmtCoef(umbral)}</p>${opcionesHtml}</div>`;
+  }).join('') : '<p class="small">Aún no hay votaciones cerradas.</p>';
+}
+
+async function votar(preguntaId, opcionId){
+  if(!sb || !propietario) return;
+  await sb.from('votos').upsert({
+    pregunta_id: preguntaId, opcion_id: opcionId, propietario_id: propietario.id,
+    coeficiente: propietario.coeficiente
+  }, { onConflict: 'pregunta_id,propietario_id' });
+  refreshVotacionUsuario();
+}
+
+/* =========================================================
+   CARGA DE EXCEL
+   ========================================================= */
+let excelParsed = [];
+
+function normalizarClave(k){ return String(k).toLowerCase().trim().replace(/\s+/g,'_'); }
+function generarCodigo(){ return Math.random().toString(36).substring(2,8).toUpperCase(); }
+
+document.getElementById('btnPreviewExcel').addEventListener('click', async () => {
+  const msg = document.getElementById('excelMsg');
+  msg.innerHTML = '';
+  const file = document.getElementById('excelInput').files[0];
+  if(!file){ msg.innerHTML = '<div class="msg msg-err">Selecciona un archivo primero.</div>'; return; }
+
+  if(typeof XLSX === 'undefined'){
+    msg.innerHTML = '<div class="msg msg-err">No se pudo cargar la librería para leer Excel (XLSX). Verifica tu conexión a internet, recarga la página, o revisa si algún bloqueador de contenido está impidiendo cargar scripts externos.</div>';
+    return;
+  }
+
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    excelParsed = rows.map(r => {
+      const obj = {};
+      Object.keys(r).forEach(k => obj[normalizarClave(k)] = r[k]);
+      const correo = (obj.correo || obj.email || '').toString().trim();
+      const codigo = (obj.codigo_acceso || obj.codigo || obj.código || '').toString().trim() || generarCodigo();
+      const apartamento = (obj.apartamento || obj.apto || '').toString().trim();
+      const coeficiente = parseFloat(obj.coeficiente || obj.coef || 0) || 0;
+      return { correo, codigo_acceso: codigo, apartamento, coeficiente };
+    }).filter(r => r.correo);
+
+    const wrap = document.getElementById('excelPreviewWrap');
+    if(!excelParsed.length){
+      wrap.innerHTML = '<p class="small">No se encontraron filas válidas (revisa que exista la columna "correo").</p>';
+      document.getElementById('btnCargarExcel').disabled = true;
+      return;
+    }
+    wrap.innerHTML = `<p class="small" style="margin-bottom:10px;">${excelParsed.length} registros listos para cargar.</p>
+      <table><thead><tr><th>Correo</th><th>Código</th><th>Apartamento</th><th>Coeficiente</th></tr></thead>
+      <tbody>${excelParsed.slice(0,50).map(r=>`<tr><td>${r.correo}</td><td>${r.codigo_acceso}</td><td>${r.apartamento}</td><td>${fmtCoef(r.coeficiente)}</td></tr>`).join('')}</tbody></table>
+      ${excelParsed.length>50?`<p class="small" style="margin-top:8px;">Mostrando 50 de ${excelParsed.length}.</p>`:''}`;
+    document.getElementById('btnCargarExcel').disabled = false;
+  }catch(err){
+    console.error('Error leyendo el Excel:', err);
+    msg.innerHTML = '<div class="msg msg-err">No se pudo leer el archivo: ' + (err.message || err) + '. Verifica que sea un .xlsx, .xls o .csv válido.</div>';
+  }
+});
+
+document.getElementById('btnCargarExcel').addEventListener('click', async () => {
+  const msg = document.getElementById('excelMsg');
+  if(!sb){ msg.innerHTML = '<div class="msg msg-err">No hay conexión con Supabase. Ve a la pestaña "Conexión", pega tu URL y anon key, y guarda.</div>'; return; }
+  if(!excelParsed.length) return;
+
+  const { error } = await sb.from('propietarios').upsert(excelParsed, { onConflict: 'correo' });
+  if(error){
+    console.error('Error cargando propietarios:', error);
+    msg.innerHTML = '<div class="msg msg-err">Error: ' + (error.message || error) + (error.hint ? ' — ' + error.hint : '') +
+      '<br>Si el error menciona "row-level security" o "policy", vuelve a ejecutar el archivo schema_asamblea.sql en el SQL Editor de Supabase.</div>';
+    return;
+  }
+  msg.innerHTML = '<div class="msg msg-ok">' + excelParsed.length + ' copropietarios cargados/actualizados correctamente.</div>';
+  refreshOnlinePanel();
+});
+
+/* =========================================================
+   INICIO
+   ========================================================= */
+(async function start(){
+  if(initSupabaseClient()){
+    await bootstrap();
+  } else {
+    document.querySelector('[data-tab="admin"]').click();
+    document.getElementById('adminPass').focus();
+  }
+})();
+</script>
+</body>
+</html>
